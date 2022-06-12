@@ -26,6 +26,7 @@ import org.apache.spark.sql.execution.datasources.hbase
 import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.sql.execution.datasources.hbase.types.SHCDataTypeFactory
 
+// 边界
 case class Bound[T](point: T, inc: Boolean)(implicit ordering: Ordering[T]) {
   override def toString = {
     s"($point $inc)"
@@ -37,7 +38,10 @@ case class Bound[T](point: T, inc: Boolean)(implicit ordering: Ordering[T]) {
   }
 }
 
-// if optional is none, it starts/ends with minimum/maximum
+/**
+ * 扫描范围，如果可选的边界是none，代表最小(左边界)最大(右边界)值
+ * if optional is none, it starts/ends with minimum/maximum
+ */
 case class ScanRange[T](start: Option[Bound[T]], end: Option[Bound[T]]) {
   def get(p: Option[Bound[T]]): Option[T] = {
     if (p.isDefined) {
@@ -121,6 +125,7 @@ object ScanRange {
     }
   }
 
+  // 查找第一个point，二分查找
   // Return the first insertion point
   // If min is true, take None as Minimum
   // Otherwise, take None as Maximum

@@ -156,7 +156,10 @@ case class SchemaMap(map: mutable.LinkedHashMap[String, Field]) {
   def getField(name: String) = map(name)
 }
 
-// The definition of HBase and Relation relation schema
+/**
+ * HBase和DataFrame Relation的映射schema
+ * The definition of HBase and Relation relation schema
+ */
 case class HBaseTableCatalog(
     val namespace: String,
     val name: String,

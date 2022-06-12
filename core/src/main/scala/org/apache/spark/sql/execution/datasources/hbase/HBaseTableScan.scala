@@ -60,6 +60,7 @@ private[hbase] class HBaseTableScanRDD(
     var idx = 0
     val r = RegionResource(relation)
     logDebug(s"There are ${r.size} regions")
+    // 隐士转换, implicit def RegionResToRegions(rr: RegionResource): Seq[HBaseRegion]
     val ps = r.flatMap { x=>
       // HBase take maximum as empty byte array, change it here.
       val pScan = ScanRange(Some(Bound(x.start.get, true)),
@@ -261,10 +262,13 @@ private[hbase] class HBaseTableScanRDD(
     val partition = split.asInstanceOf[HBaseScanPartition]
     // remove the inclusive upperbound
     val scanRanges = partition.scanRanges.flatMap(ScanRange.split(_)(ord))
+    // g：用于gets，s：用于scan
     val (g, s) = scanRanges.partition{x =>
+      // start = end != null
       x.start.isDefined && x.end.isDefined && ScanRange.compare(x.start, x.end, ord) == 0
     }
     logDebug(s"${g.length} gets, ${s.length} scans")
+    // 注册task回调函数：rddResources.release()
     context.addTaskCompletionListener(context => close())
     val tableResource = TableResource(relation)
     val filter = TypedFilter.fromSerializedTypedFilter(partition.tf).filter

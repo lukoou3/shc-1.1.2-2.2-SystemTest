@@ -65,8 +65,12 @@ private[sql] class DefaultSource extends RelationProvider with CreatableRelation
 }
 
 case class InvalidRegionNumberException(message: String = "", cause: Throwable = null)
-              extends Exception(message, cause) 
+              extends Exception(message, cause)
 
+/**
+ *  HBase souce
+ *  case class，所以HBaseRelation也是实现了序列化了的
+ */
 case class HBaseRelation(
     parameters: Map[String, String],
     userSpecifiedschema: Option[StructType]
@@ -80,13 +84,24 @@ case class HBaseRelation(
 
   val catalog = HBaseTableCatalog(parameters)
 
+  // 支持序列化的conf, wrappedConf: SerializableConfiguration
   private val wrappedConf = {
     implicit val formats = DefaultFormats
     val hConf = {
+      // 是否测试
       val testConf = sqlContext.sparkContext.conf.getBoolean(SparkHBaseConf.testConf, false)
       if (testConf) {
         SparkHBaseConf.conf
       } else {
+        /**
+         * 读取hbase配置
+         *    读取json参数配置，val HBASE_CONFIGURATION = "hbaseConfiguration"
+         *    读取xml配置文件，HBASE_CONFIGFILE = "hbaseConfigFile"
+         * 这样的话，配置就有三部分决定(依次设置，也就是等级越来越高)：
+         *    1、classpath下的hbase标准xml配置文件
+         *    2、spark参数中的json参数
+         *    3、spark参数中的xml配置文件
+         */
         val hBaseConfiguration = parameters.get(HBaseRelation.HBASE_CONFIGURATION).map(
           parse(_).extract[Map[String, String]])
 
@@ -297,11 +312,13 @@ case class HBaseRelation(
     filters.filter(!HBaseFilter.buildFilter(_, this).handled)
   }
 
+  // 读取df
   def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     new HBaseTableScanRDD(this, requiredColumns, filters)
   }
 }
 
+// 包装Configuration，使之支持序列化
 class SerializableConfiguration(@transient var value: Configuration) extends Serializable {
   private def writeObject(out: ObjectOutputStream): Unit = tryOrIOException {
     out.defaultWriteObject()

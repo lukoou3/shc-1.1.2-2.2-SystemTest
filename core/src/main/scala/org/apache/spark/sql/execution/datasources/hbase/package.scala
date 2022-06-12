@@ -22,6 +22,9 @@ import scala.math.Ordering
 import org.apache.hadoop.hbase.util.Bytes
 
 package object hbase {
+  /**
+   * 定义HBaseType，就是字节数组的别名，同时定义Ordering，就是使用hbase官方的Bytes.compareTo
+   */
   type HBaseType = Array[Byte]
   //Do not use BinaryType.ordering
   implicit val order: Ordering[HBaseType] =  ord

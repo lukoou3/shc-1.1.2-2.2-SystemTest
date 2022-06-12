@@ -36,11 +36,12 @@ private[spark] object HBaseConnectionCache extends Logging {
 
   private val cacheStat = HBaseConnectionCacheStat(0, 0, 0)
 
-  // in milliseconds
+  // in milliseconds, 默认10分钟超时
   private final val DEFAULT_TIME_OUT: Long = SparkHBaseConf.connectionCloseDelay
   private val timeout = new AtomicLong(DEFAULT_TIME_OUT)
   private val closed = new AtomicBoolean(false)
 
+  // 定时清除没用和超时的连接
   private var housekeepingThread = new Thread(new Runnable {
     override def run() {
       while (true) {
@@ -72,8 +73,10 @@ private[spark] object HBaseConnectionCache extends Logging {
   }
 
 
+  // 获取cacheStat，返回副本
   def getStat: HBaseConnectionCacheStat = {
     connectionMap.synchronized {
+      // ActiveConnections一直在变，直接现在返回size
       cacheStat.setActiveConnections(connectionMap.size)
       cacheStat.copy()
     }
@@ -128,9 +131,11 @@ private[spark] object HBaseConnectionCache extends Logging {
     connectionMap.synchronized {
       if (closed.get()) return null
       val sc = connectionMap.getOrElseUpdate(key, {
+        // 创建连接 + 1
         cacheStat.incrementActualConnectionsCreated(1)
         new SmartConnection(conn)
       })
+      // 请求连接 + 1
       cacheStat.incrementTotalRequests(1)
       sc.refCount += 1
       sc
@@ -241,6 +246,10 @@ private[hbase] object HBaseConnectionKey {
 
 /**
  * To log the state of [[HBaseConnectionCache]]
+ *
+ * numTotalRequests: 从cache中get connection的次数
+ * numActualConnectionsCreated: 实际创建过的connection数量
+ * numActiveConnections: cache中存活的connection数量
  *
  * numTotalRequests: number of total connection requests to the cache
  * numActualConnectionsCreated: number of actual HBase connections the cache ever created

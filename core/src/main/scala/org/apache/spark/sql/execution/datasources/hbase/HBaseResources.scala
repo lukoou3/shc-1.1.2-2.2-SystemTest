@@ -44,12 +44,21 @@ case class GetResource(tbr: TableResource, rs: Array[Result]) extends Resource {
   }
 }
 
-// Multiple child resource may use this one, which is reference counted.
-// It will not be released until the counter reaches 0
+/**
+ * 一个引用计数的Resource，在引用计数达到0之前Resource不会计数
+ * 这个可以复用在自己的项目里
+ *
+ * Multiple child resource may use this one, which is reference counted.
+ * It will not be released until the counter reaches 0
+ */
 trait ReferencedResource {
   var count: Int = 0
   def init(): Unit
   def destroy(): Unit
+
+  /**
+   * 申请使用，当第一次申请时，初始化资源。
+   */
   def acquire() = synchronized {
     try {
       count += 1
@@ -63,6 +72,9 @@ trait ReferencedResource {
     }
   }
 
+  /**
+   * 释放，当引用计数为0时，真正的释放销毁资源
+   */
   def release() = synchronized {
     count -= 1
     if (count == 0) {
@@ -70,6 +82,9 @@ trait ReferencedResource {
     }
   }
 
+  /**
+   * 这个是干啥的？
+   */
   def releaseOnException[T](func: => T): T = {
     acquire()
     val ret = {
@@ -105,19 +120,31 @@ case class RegionResource(relation: HBaseRelation) extends ReferencedResource {
     }
   }
 
+  /**
+   * 每个region的信息，
+   *
+   * HBaseRegion(
+   * override val index: Int,
+   * start: Option[HBaseType] = None,
+   * end: Option[HBaseType] = None,
+   * server: Option[String] = None)
+   */
   val regions = releaseOnException {
     val keys = rl.getStartEndKeys
     keys.getFirst.zip(keys.getSecond)
       .zipWithIndex
       .map(x =>
-      HBaseRegion(x._2,
-        Some(x._1._1),
-        Some(x._1._2),
-        Some(rl.getRegionLocation(x._1._1).getHostname)))
+      HBaseRegion(
+        x._2, // index: Int,
+        Some(x._1._1), // start: Option[HBaseType],
+        Some(x._1._2), // end: Option[HBaseType],
+        Some(rl.getRegionLocation(x._1._1).getHostname) // server: Option[String]
+      ))
   }
 }
 
 case class TableResource(relation: HBaseRelation) extends ReferencedResource {
+  // connection.close(), 并不会直接关闭原始的hbase Connection, 只是把refCount - 1
   var connection: SmartConnection = _
   var table: Table = _
 

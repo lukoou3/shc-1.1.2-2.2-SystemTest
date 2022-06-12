@@ -158,6 +158,16 @@ object HBaseFilter extends Logging{
     ret.getOrElse(HRF.empty[Array[Byte]])
   }
 
+  /**
+   * 把sql的过滤转换为hbase查询的过滤，可以参考过滤器的使用
+   * spark的这些datasources是真的厉害，会提前过滤，而且还这么的优雅，看了flink的hbase的source仅仅是过滤了要读的列，和这个差远了
+   * EqualTo：相等直接比较二进制相等即可，SingleColumnValueFilter CompareOp.EQUAL Array[Byte]
+   * StringStartsWith：使用二进制前缀相等，SingleColumnValueFilter CompareOp.EQUAL BinaryPrefixComparator
+   * StringEndsWith：使用字符串正则相等，SingleColumnValueFilter CompareOp.EQUAL RegexStringComparator(s".*$value")
+   * StringContains：使用子字符串相等，SingleColumnValueFilter CompareOp.EQUAL SubstringComparator(value)
+   * not StringContains：使用子字符串不相等，SingleColumnValueFilter CompareOp.NOT_EQUAL SubstringComparator(value)
+   *
+   */
   def buildFilter(filter: Filter, relation: HBaseRelation): HRF[Array[Byte]] = {
     val tCoder = relation.catalog.shcTableCoder
     // We treat greater and greaterOrEqual as the same
